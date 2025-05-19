@@ -7,55 +7,44 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      # Étape 1 : Checkout du code
-      - name: Checkout code
+
+      - name: Checkout
         uses: actions/checkout@v3
 
-      # Étape 2 : Configuration Java
-      - name: Set up Java 17
+
+      - name: Set up Java
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
-          java-version: '17'
-          cache: 'maven'
+          java-version: '17'  # Aligné avec le JDK 17
 
-      # Étape 3 : Build Maven
+      # Étape 3 : Compilation et tests
       - name: Build with Maven
-        run: |
-          mvn clean compile
-          mvn test
-          mvn package
+        run: mvn compile
 
-      # Étape 4 : Stocker l'artefact (optionnel)
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+      - name: Run Tests
+        run: mvn test
+
+
+      - name: Package JAR
+        run: mvn package
+
+
+      - name: Deploy to Server
+        uses: appleboy/scp-action@v0.1.4
         with:
-          name: application-jar
-          path: target/*.jar
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "target/*.jar"
+          target: "/home/user/app"
 
-      # Étape 5 : Configuration SSH
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.7.0
+      - name: Start Application
+        uses: appleboy/ssh-action@v0.1.10
         with:
-          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
-
-      # Étape 6 : Déploiement sécurisé
-      - name: Deploy Application
-        run: |
-          # Copie du fichier JAR
-          scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-              target/*.jar ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/user/app/
-          
-          # Arrêt de l'application existante et démarrage de la nouvelle
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-              "pkill -f 'java -jar' || true && \
-               nohup java -jar /home/user/app/*.jar > /home/user/app/log.txt 2>&1 &"
-
-      # Étape 7 : Vérification du déploiement
-      - name: Verify Deployment
-        run: |
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-              "curl -s http://localhost:8080/health || exit 1"
-        timeout-minutes: 2
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            pkill -f 'java -jar' || true
+            nohup java -jar /home/user/app/*.jar > log.txt 2>&1 &
