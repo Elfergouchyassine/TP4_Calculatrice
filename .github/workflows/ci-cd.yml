@@ -18,7 +18,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'  # Aligné avec le JDK 17
 
-      # Étape 3 : Compilation et tests
+
       - name: Build with Maven
         run: mvn compile
 
